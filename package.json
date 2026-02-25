@@ -1,0 +1,17 @@
+{
+  "name": "ccusage-worv",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter dashboard dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "seed": "tsx scripts/seed.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}
