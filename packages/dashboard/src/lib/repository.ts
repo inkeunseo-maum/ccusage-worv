@@ -4,7 +4,7 @@ import type { UsageReport, TeamMember } from '@ccusage-worv/shared';
 
 export function getOrCreateMember(name: string): TeamMember {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM team_members WHERE name = ?').get(name) as TeamMember | undefined;
+  const existing = db.prepare('SELECT id, name, created_at as createdAt FROM team_members WHERE name = ?').get(name) as TeamMember | undefined;
   if (existing) return existing;
 
   const id = randomUUID();
@@ -34,7 +34,7 @@ export function insertUsageReport(report: UsageReport): void {
 }
 
 export function getAllMembers(): TeamMember[] {
-  return getDb().prepare('SELECT * FROM team_members ORDER BY name').all() as TeamMember[];
+  return getDb().prepare('SELECT id, name, created_at as createdAt FROM team_members ORDER BY name').all() as TeamMember[];
 }
 
 export interface DailyUsage {
