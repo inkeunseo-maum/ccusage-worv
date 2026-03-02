@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid report' }, { status: 400 });
     }
 
-    insertUsageReport(report);
+    await insertUsageReport(report);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Failed to save usage report:', err);

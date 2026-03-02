@@ -1,40 +1,55 @@
-import { randomUUID } from 'node:crypto';
-import { getDb } from './db';
+import { supabase } from './db';
 import type { UsageReport, TeamMember } from './types';
 
-export function getOrCreateMember(name: string): TeamMember {
-  const db = getDb();
-  const existing = db.prepare('SELECT id, name, created_at as createdAt FROM team_members WHERE name = ?').get(name) as TeamMember | undefined;
-  if (existing) return existing;
+export async function getOrCreateMember(name: string): Promise<TeamMember> {
+  const { data: existing } = await supabase
+    .from('team_members')
+    .select('id, name, created_at')
+    .eq('name', name)
+    .single();
 
-  const id = randomUUID();
-  const now = new Date().toISOString();
-  db.prepare('INSERT INTO team_members (id, name, created_at) VALUES (?, ?, ?)').run(id, name, now);
-  return { id, name, createdAt: now };
-}
-
-export function insertUsageReport(report: UsageReport): void {
-  const db = getDb();
-  const member = getOrCreateMember(report.memberName);
-
-  const stmt = db.prepare(`
-    INSERT INTO usage_records (id, member_id, session_id, model, input_tokens, output_tokens,
-      cache_creation_tokens, cache_read_tokens, cost_usd, project_name, recorded_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const now = new Date().toISOString();
-  for (const r of report.records) {
-    stmt.run(
-      randomUUID(), member.id, report.sessionId, r.model,
-      r.inputTokens, r.outputTokens, r.cacheCreationTokens, r.cacheReadTokens,
-      r.costUsd, r.projectName, r.recordedAt, now
-    );
+  if (existing) {
+    return { id: existing.id, name: existing.name, createdAt: existing.created_at };
   }
+
+  const { data: created, error } = await supabase
+    .from('team_members')
+    .insert({ name })
+    .select('id, name, created_at')
+    .single();
+
+  if (error) throw error;
+  return { id: created!.id, name: created!.name, createdAt: created!.created_at };
 }
 
-export function getAllMembers(): TeamMember[] {
-  return getDb().prepare('SELECT id, name, created_at as createdAt FROM team_members ORDER BY name').all() as TeamMember[];
+export async function insertUsageReport(report: UsageReport): Promise<void> {
+  const member = await getOrCreateMember(report.memberName);
+
+  const rows = report.records.map((r) => ({
+    member_id: member.id,
+    session_id: report.sessionId,
+    model: r.model,
+    input_tokens: r.inputTokens,
+    output_tokens: r.outputTokens,
+    cache_creation_tokens: r.cacheCreationTokens,
+    cache_read_tokens: r.cacheReadTokens,
+    cost_usd: r.costUsd,
+    project_name: r.projectName,
+    recorded_at: r.recordedAt,
+  }));
+
+  const { error } = await supabase.from('usage_records').insert(rows);
+  if (error) throw error;
+}
+
+export async function getAllMembers(): Promise<TeamMember[]> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('id, name, created_at')
+    .order('name');
+
+  if (error) throw error;
+  return (data || []).map((m) => ({ id: m.id, name: m.name, createdAt: m.created_at }));
 }
 
 export interface DailyUsage {
@@ -48,48 +63,26 @@ export interface DailyUsage {
   costUsd: number;
 }
 
-export function getDailyUsage(days: number = 30): DailyUsage[] {
-  return getDb().prepare(`
-    SELECT
-      date(ur.recorded_at) as date,
-      tm.name as memberName,
-      ur.model,
-      SUM(ur.input_tokens) as inputTokens,
-      SUM(ur.output_tokens) as outputTokens,
-      SUM(ur.cache_creation_tokens) as cacheCreationTokens,
-      SUM(ur.cache_read_tokens) as cacheReadTokens,
-      SUM(ur.cost_usd) as costUsd
-    FROM usage_records ur
-    JOIN team_members tm ON ur.member_id = tm.id
-    WHERE ur.recorded_at >= datetime('now', '-' || ? || ' days')
-    GROUP BY date(ur.recorded_at), tm.name, ur.model
-    ORDER BY date DESC
-  `).all(days) as DailyUsage[];
+export async function getDailyUsage(days: number = 30): Promise<DailyUsage[]> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data, error } = await supabase.rpc('get_daily_usage', { since_date: since });
+  if (error) throw error;
+  return data || [];
 }
 
-export function getMemberUsage(days: number = 30): { memberName: string; totalCost: number; totalTokens: number }[] {
-  return getDb().prepare(`
-    SELECT
-      tm.name as memberName,
-      SUM(ur.cost_usd) as totalCost,
-      SUM(ur.input_tokens + ur.output_tokens) as totalTokens
-    FROM usage_records ur
-    JOIN team_members tm ON ur.member_id = tm.id
-    WHERE ur.recorded_at >= datetime('now', '-' || ? || ' days')
-    GROUP BY tm.name
-    ORDER BY totalCost DESC
-  `).all(days) as { memberName: string; totalCost: number; totalTokens: number }[];
+export async function getMemberUsage(days: number = 30): Promise<{ memberName: string; totalCost: number; totalTokens: number }[]> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data, error } = await supabase.rpc('get_member_usage', { since_date: since });
+  if (error) throw error;
+  return data || [];
 }
 
-export function getModelDistribution(days: number = 30): { model: string; count: number; totalCost: number }[] {
-  return getDb().prepare(`
-    SELECT
-      model,
-      COUNT(*) as count,
-      SUM(cost_usd) as totalCost
-    FROM usage_records
-    WHERE recorded_at >= datetime('now', '-' || ? || ' days')
-    GROUP BY model
-    ORDER BY totalCost DESC
-  `).all(days) as { model: string; count: number; totalCost: number }[];
+export async function getModelDistribution(days: number = 30): Promise<{ model: string; count: number; totalCost: number }[]> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data, error } = await supabase.rpc('get_model_distribution', { since_date: since });
+  if (error) throw error;
+  return data || [];
 }
