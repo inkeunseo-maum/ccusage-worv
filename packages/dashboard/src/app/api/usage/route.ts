@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { insertUsageReport } from '@/lib/repository';
-import type { UsageReport } from '@ccusage-worv/shared';
+import type { UsageReport } from '@/lib/types';
 
 export async function POST(request: Request) {
   try {

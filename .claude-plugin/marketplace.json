@@ -1,0 +1,12 @@
+{
+  "name": "worv",
+  "owner": { "name": "MaumAI-Company" },
+  "plugins": [
+    {
+      "name": "ccusage-worv",
+      "source": "./plugin",
+      "description": "Claude Code 팀 사용량 자동 수집 플러그인",
+      "version": "0.1.0"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from './db';
-import type { UsageReport, TeamMember } from '@ccusage-worv/shared';
+import type { UsageReport, TeamMember } from './types';
 
 export function getOrCreateMember(name: string): TeamMember {
   const db = getDb();

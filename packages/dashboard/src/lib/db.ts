@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { join } from 'node:path';
-import { CREATE_TABLES_SQL } from '@ccusage-worv/shared';
+import { CREATE_TABLES_SQL } from './schema';
 
 const DB_PATH = process.env.DATABASE_PATH || join(process.cwd(), 'data.db');
 
