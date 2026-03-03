@@ -1,5 +1,5 @@
 import { supabase } from './db';
-import type { UsageReport, TeamMember } from './types';
+import type { UsageReport, TeamMember, MemberBudgetUsage, UsageVelocity, BudgetConfig } from './types';
 
 export async function getOrCreateMember(name: string): Promise<TeamMember> {
   const { data: existing } = await supabase
@@ -85,4 +85,64 @@ export async function getModelDistribution(days: number = 30): Promise<{ model: 
   const { data, error } = await supabase.rpc('get_model_distribution', { since_date: since });
   if (error) throw error;
   return data || [];
+}
+
+// 예산 관련 함수
+
+function getWeekStart(): Date {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? 6 : day - 1; // 월요일 기준
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+}
+
+function getMonthStart(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+export async function getMemberBudgetUsage(budgetType: 'weekly' | 'monthly'): Promise<MemberBudgetUsage[]> {
+  const periodStart = budgetType === 'weekly' ? getWeekStart() : getMonthStart();
+
+  const { data, error } = await supabase.rpc('get_member_budget_usage', {
+    period_type: budgetType,
+    period_start: periodStart.toISOString(),
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getUsageVelocity(): Promise<UsageVelocity[]> {
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  const { data, error } = await supabase.rpc('get_usage_velocity', { since_date: since });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertBudget(memberId: string | null, budgetType: 'weekly' | 'monthly', budgetUsd: number): Promise<void> {
+  const { error } = await supabase.rpc('upsert_budget', {
+    p_member_id: memberId,
+    p_budget_type: budgetType,
+    p_budget_usd: budgetUsd,
+  });
+  if (error) throw error;
+}
+
+export async function getAllBudgets(): Promise<BudgetConfig[]> {
+  const { data, error } = await supabase
+    .from('budget_configs')
+    .select('id, member_id, budget_type, budget_usd')
+    .order('budget_type');
+
+  if (error) throw error;
+  return (data || []).map((b) => ({
+    id: b.id,
+    memberId: b.member_id,
+    budgetType: b.budget_type as 'weekly' | 'monthly',
+    budgetUsd: b.budget_usd,
+  }));
 }

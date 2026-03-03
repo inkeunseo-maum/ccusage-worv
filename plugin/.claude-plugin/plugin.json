@@ -2,6 +2,6 @@
   "name": "ccusage-worv",
   "version": "0.1.0",
   "description": "Claude Code 팀 사용량 자동 수집 플러그인. SessionEnd hook으로 토큰/비용 데이터를 중앙 서버에 전송.",
-  "author": { "name": "MaumAI-Company" },
-  "repository": "https://github.com/MaumAI-Company/ccusage-worv"
+  "author": { "name": "inkeunseo-maum" },
+  "repository": "https://github.com/inkeunseo-maum/ccusage-worv"
 }

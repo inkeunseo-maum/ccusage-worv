@@ -1,6 +1,6 @@
 {
   "name": "worv",
-  "owner": { "name": "MaumAI-Company" },
+  "owner": { "name": "inkeunseo-maum" },
   "plugins": [
     {
       "name": "ccusage-worv",

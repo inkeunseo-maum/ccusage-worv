@@ -45,7 +45,7 @@ HTTP POST /api/usage ──────────────→ 요청 수신
 
 ```bash
 # 마켓플레이스에서 설치
-/plugin marketplace add MaumAI-Company/ccusage-worv
+/plugin marketplace add inkeunseo-maum/ccusage-worv
 /plugin install ccusage-worv@worv
 ```
 
@@ -68,7 +68,7 @@ Claude Code에서 슬래시 커맨드 실행:
 ```json
 {
   "memberName": "홍길동",
-  "serverUrl": "http://localhost:3000"
+  "serverUrl": "https://ccusage-worv.vercel.app"
 }
 ```
 
@@ -83,7 +83,7 @@ claude --plugin-dir ./plugin
 ### 실행
 
 ```bash
-git clone https://github.com/MaumAI-Company/ccusage-worv.git
+git clone https://github.com/inkeunseo-maum/ccusage-worv.git
 cd ccusage-worv
 pnpm install
 pnpm dev

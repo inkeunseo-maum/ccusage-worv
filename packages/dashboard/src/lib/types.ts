@@ -23,3 +23,26 @@ export interface TeamMember {
   name: string;
   createdAt: string;
 }
+
+// 예산 관련 타입
+export interface MemberBudgetUsage {
+  memberId: string;
+  memberName: string;
+  budgetUsd: number;
+  usedUsd: number;
+  usagePercent: number;
+}
+
+export interface UsageVelocity {
+  memberId: string;
+  memberName: string;
+  dailyAvgUsd: number;
+  activeDays: number;
+}
+
+export interface BudgetConfig {
+  id: string;
+  memberId: string | null;
+  budgetType: 'weekly' | 'monthly';
+  budgetUsd: number;
+}

@@ -5,12 +5,40 @@ import { StatsCards } from '@/components/StatsCards';
 import { DailyChart } from '@/components/DailyChart';
 import { MemberTable } from '@/components/MemberTable';
 import { ModelPieChart } from '@/components/ModelPieChart';
+import { BudgetPanel } from '@/components/BudgetPanel';
+import { BudgetSettings } from '@/components/BudgetSettings';
+
+interface BudgetUsage {
+  memberId: string;
+  memberName: string;
+  budgetUsd: number;
+  usedUsd: number;
+  usagePercent: number;
+}
+
+interface Velocity {
+  memberId: string;
+  memberName: string;
+  dailyAvgUsd: number;
+  activeDays: number;
+}
+
+interface BudgetConfig {
+  id: string;
+  memberId: string | null;
+  budgetType: 'weekly' | 'monthly';
+  budgetUsd: number;
+}
 
 interface Stats {
   daily: { date: string; memberName: string; model: string; costUsd: number; inputTokens: number; outputTokens: number }[];
   members: { memberName: string; totalCost: number; totalTokens: number }[];
   models: { model: string; count: number; totalCost: number }[];
   teamMembers: { id: string; name: string }[];
+  weeklyBudgets: BudgetUsage[];
+  monthlyBudgets: BudgetUsage[];
+  velocity: Velocity[];
+  budgetConfigs: BudgetConfig[];
 }
 
 const PERIOD_OPTIONS = [
@@ -22,11 +50,16 @@ const PERIOD_OPTIONS = [
 export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [days, setDays] = useState(30);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchStats = () => {
     fetch(`/api/stats?days=${days}`)
       .then(r => r.json())
       .then(setStats);
+  };
+
+  useEffect(() => {
+    fetchStats();
   }, [days]);
 
   if (!stats) {
@@ -40,9 +73,19 @@ export default function Home() {
     );
   }
 
-  const memberNames = [...new Set(stats.daily.map(d => d.memberName))];
+  const EXCLUDED_MEMBERS = ['inkeun'];
+  const isIncluded = (name: string) => !EXCLUDED_MEMBERS.includes(name);
+
+  const filteredDaily = stats.daily.filter(d => isIncluded(d.memberName));
+  const filteredMembers = stats.members.filter(m => isIncluded(m.memberName));
+  const filteredTeamMembers = stats.teamMembers.filter(m => isIncluded(m.name));
+  const filteredWeeklyBudgets = stats.weeklyBudgets.filter(b => isIncluded(b.memberName));
+  const filteredMonthlyBudgets = stats.monthlyBudgets.filter(b => isIncluded(b.memberName));
+  const filteredVelocity = stats.velocity.filter(v => isIncluded(v.memberName));
+
+  const memberNames = [...new Set(filteredDaily.map(d => d.memberName))];
   const dailyMap = new Map<string, Record<string, number>>();
-  for (const d of stats.daily) {
+  for (const d of filteredDaily) {
     if (!dailyMap.has(d.date)) dailyMap.set(d.date, {});
     const row = dailyMap.get(d.date)!;
     row[d.memberName] = (row[d.memberName] || 0) + d.costUsd;
@@ -51,8 +94,8 @@ export default function Home() {
     .map(([date, row]) => ({ date, ...row }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const totalCost = stats.members.reduce((s, m) => s + m.totalCost, 0);
-  const totalTokens = stats.members.reduce((s, m) => s + m.totalTokens, 0);
+  const totalCost = filteredMembers.reduce((s, m) => s + m.totalCost, 0);
+  const totalTokens = filteredMembers.reduce((s, m) => s + m.totalTokens, 0);
 
   return (
     <main className="min-h-screen" style={{ background: '#09090b' }}>
@@ -135,17 +178,54 @@ export default function Home() {
               <span style={{ fontSize: '13px', color: '#71717a' }}>Team Usage</span>
             </div>
 
-            {/* Period pills */}
-            <div className="flex items-center gap-1" style={{ padding: '3px', borderRadius: '9999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              {PERIOD_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setDays(opt.value)}
-                  className={`period-pill${days === opt.value ? ' active' : ''}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              {/* Period pills */}
+              <div className="flex items-center gap-1" style={{ padding: '3px', borderRadius: '9999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                {PERIOD_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setDays(opt.value)}
+                    className={`period-pill${days === opt.value ? ' active' : ''}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Settings button */}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                title="예산 설정"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#71717a',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  fontSize: '14px',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#a1a1aa';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = '#71717a';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
             </div>
           </div>
         </header>
@@ -175,8 +255,8 @@ export default function Home() {
             <StatsCards
               totalCost={totalCost}
               totalTokens={totalTokens}
-              memberCount={stats.teamMembers.length}
-              sessionCount={stats.daily.length}
+              memberCount={filteredTeamMembers.length}
+              sessionCount={filteredDaily.length}
             />
           </div>
 
@@ -185,16 +265,34 @@ export default function Home() {
             <DailyChart data={dailyChartData} members={memberNames} />
           </div>
 
+          {/* Budget panel */}
+          <div className="animate-fade-in-up animate-delay-4" style={{ marginBottom: '24px' }}>
+            <BudgetPanel
+              weeklyBudgets={filteredWeeklyBudgets}
+              monthlyBudgets={filteredMonthlyBudgets}
+              velocity={filteredVelocity}
+            />
+          </div>
+
           {/* Bottom row */}
           <div
-            className="grid gap-6 animate-fade-in-up animate-delay-4"
+            className="grid gap-6 animate-fade-in-up animate-delay-5"
             style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}
           >
-            <MemberTable data={stats.members} />
+            <MemberTable data={filteredMembers} />
             <ModelPieChart data={stats.models} />
           </div>
         </div>
       </div>
+
+      {/* Budget settings modal */}
+      <BudgetSettings
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        budgetConfigs={stats.budgetConfigs}
+        teamMembers={filteredTeamMembers}
+        onSaved={fetchStats}
+      />
     </main>
   );
 }
