@@ -27,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_usage_member ON usage_records(member_id);
 CREATE INDEX IF NOT EXISTS idx_usage_recorded ON usage_records(recorded_at);
 CREATE INDEX IF NOT EXISTS idx_usage_session ON usage_records(session_id);
 
+-- 중복 전송 방지: 같은 세션+멤버+모델 조합은 덮어쓰기
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique_session_model
+  ON usage_records(session_id, member_id, model);
+
 -- 2. RPC 함수: 일별 사용량
 CREATE OR REPLACE FUNCTION get_daily_usage(since_date TIMESTAMPTZ)
 RETURNS TABLE (

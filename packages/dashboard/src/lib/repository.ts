@@ -18,7 +18,18 @@ export async function getOrCreateMember(name: string): Promise<TeamMember> {
     .select('id, name, created_at')
     .single();
 
-  if (error) throw error;
+  // Race condition: 동시 요청으로 이미 생성된 경우 다시 조회
+  if (error) {
+    const { data: retry } = await supabase
+      .from('team_members')
+      .select('id, name, created_at')
+      .eq('name', name)
+      .single();
+    if (retry) {
+      return { id: retry.id, name: retry.name, createdAt: retry.created_at };
+    }
+    throw error;
+  }
   return { id: created!.id, name: created!.name, createdAt: created!.created_at };
 }
 
@@ -37,6 +48,13 @@ export async function insertUsageReport(report: UsageReport): Promise<void> {
     project_name: r.projectName,
     recorded_at: r.recordedAt,
   }));
+
+  // 같은 세션의 기존 레코드 삭제 후 삽입 (중복 방지)
+  await supabase
+    .from('usage_records')
+    .delete()
+    .eq('session_id', report.sessionId)
+    .eq('member_id', member.id);
 
   const { error } = await supabase.from('usage_records').insert(rows);
   if (error) throw error;

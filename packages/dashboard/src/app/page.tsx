@@ -73,15 +73,12 @@ export default function Home() {
     );
   }
 
-  const EXCLUDED_MEMBERS = ['inkeun'];
-  const isIncluded = (name: string) => !EXCLUDED_MEMBERS.includes(name);
-
-  const filteredDaily = stats.daily.filter(d => isIncluded(d.memberName));
-  const filteredMembers = stats.members.filter(m => isIncluded(m.memberName));
-  const filteredTeamMembers = stats.teamMembers.filter(m => isIncluded(m.name));
-  const filteredWeeklyBudgets = stats.weeklyBudgets.filter(b => isIncluded(b.memberName));
-  const filteredMonthlyBudgets = stats.monthlyBudgets.filter(b => isIncluded(b.memberName));
-  const filteredVelocity = stats.velocity.filter(v => isIncluded(v.memberName));
+  const filteredDaily = stats.daily;
+  const filteredMembers = stats.members;
+  const filteredTeamMembers = stats.teamMembers;
+  const filteredWeeklyBudgets = stats.weeklyBudgets;
+  const filteredMonthlyBudgets = stats.monthlyBudgets;
+  const filteredVelocity = stats.velocity;
 
   const memberNames = [...new Set(filteredDaily.map(d => d.memberName))];
   const dailyMap = new Map<string, Record<string, number>>();
