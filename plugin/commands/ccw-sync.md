@@ -1,5 +1,5 @@
 ---
-name: sync
+name: ccw-sync
 description: 미전송 세션을 수동으로 서버에 전송합니다
 ---
 

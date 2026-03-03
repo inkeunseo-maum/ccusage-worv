@@ -1,5 +1,5 @@
 ---
-name: init
+name: ccw-setup
 description: ccusage-worv 초기 설정 (팀원 이름, 플러그인 활성화, 과거 데이터 backfill)
 ---
 
