@@ -37,6 +37,7 @@ test.describe('Dashboard Page', () => {
       sessionCount: 2,
       rolling5h: [],
       rolling7d: [],
+      utilization: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -76,6 +77,7 @@ test.describe('Dashboard Page', () => {
       sessionCount: 0,
       rolling5h: [],
       rolling7d: [],
+      utilization: [],
     };
 
     let lastRequestedDays: string | null = null;
@@ -118,6 +120,7 @@ test.describe('Dashboard Page', () => {
       sessionCount: 42, // Intentionally different from daily.length (1)
       rolling5h: [],
       rolling7d: [],
+      utilization: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -152,6 +155,7 @@ test.describe('Dashboard Page', () => {
       sessionCount: 5,
       rolling5h: [],
       rolling7d: [],
+      utilization: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -183,6 +187,7 @@ test.describe('Dashboard Page', () => {
       sessionCount: 0,
       rolling5h: [],
       rolling7d: [],
+      utilization: [],
     };
 
     await page.route('**/api/stats*', (route) =>
