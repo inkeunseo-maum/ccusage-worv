@@ -19,8 +19,15 @@ export async function POST(request: Request) {
     if (!budgetType || !['weekly', 'monthly'].includes(budgetType)) {
       return NextResponse.json({ error: 'Invalid budgetType' }, { status: 400 });
     }
-    if (typeof budgetUsd !== 'number' || budgetUsd < 0) {
+    if (typeof budgetUsd !== 'number' || isNaN(budgetUsd) || budgetUsd < 0 || budgetUsd > 1_000_000) {
       return NextResponse.json({ error: 'Invalid budgetUsd' }, { status: 400 });
+    }
+
+    if (memberId !== null && memberId !== undefined) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof memberId !== 'string' || !uuidRegex.test(memberId)) {
+        return NextResponse.json({ error: 'Invalid memberId format' }, { status: 400 });
+      }
     }
 
     await upsertBudget(memberId || null, budgetType, budgetUsd);
