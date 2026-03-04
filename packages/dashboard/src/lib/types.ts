@@ -21,7 +21,13 @@ export interface UsageRecord {
 export interface TeamMember {
   id: string;
   name: string;
-  createdAt: string;
+  createdAt?: string;
+}
+
+// Dashboard에서 사용하는 팀원 (간략)
+export interface TeamMemberSummary {
+  id: string;
+  name: string;
 }
 
 // 예산 관련 타입

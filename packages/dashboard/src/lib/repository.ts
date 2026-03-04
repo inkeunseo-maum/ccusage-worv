@@ -50,14 +50,16 @@ export async function insertUsageReport(report: UsageReport): Promise<void> {
   }));
 
   // 같은 세션의 기존 레코드 삭제 후 삽입 (중복 방지)
-  await supabase
+  const { error: deleteError } = await supabase
     .from('usage_records')
     .delete()
     .eq('session_id', report.sessionId)
     .eq('member_id', member.id);
 
-  const { error } = await supabase.from('usage_records').insert(rows);
-  if (error) throw error;
+  if (deleteError) throw deleteError;
+
+  const { error: insertError } = await supabase.from('usage_records').insert(rows);
+  if (insertError) throw insertError;
 }
 
 export async function getAllMembers(): Promise<TeamMember[]> {
@@ -103,6 +105,18 @@ export async function getModelDistribution(days: number = 30): Promise<{ model: 
   const { data, error } = await supabase.rpc('get_model_distribution', { since_date: since });
   if (error) throw error;
   return data || [];
+}
+
+export async function getSessionCount(days: number = 30): Promise<number> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { count, error } = await supabase
+    .from('usage_records')
+    .select('session_id', { count: 'exact', head: true })
+    .gte('recorded_at', since);
+
+  if (error) throw error;
+  return count || 0;
 }
 
 // 예산 관련 함수

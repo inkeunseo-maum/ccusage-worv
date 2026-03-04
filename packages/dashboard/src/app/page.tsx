@@ -1,44 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { StatsCards } from '@/components/StatsCards';
 import { DailyChart } from '@/components/DailyChart';
 import { MemberTable } from '@/components/MemberTable';
 import { ModelPieChart } from '@/components/ModelPieChart';
 import { BudgetPanel } from '@/components/BudgetPanel';
 import { BudgetSettings } from '@/components/BudgetSettings';
-
-interface BudgetUsage {
-  memberId: string;
-  memberName: string;
-  budgetUsd: number;
-  usedUsd: number;
-  usagePercent: number;
-}
-
-interface Velocity {
-  memberId: string;
-  memberName: string;
-  dailyAvgUsd: number;
-  activeDays: number;
-}
-
-interface BudgetConfig {
-  id: string;
-  memberId: string | null;
-  budgetType: 'weekly' | 'monthly';
-  budgetUsd: number;
-}
+import type { MemberBudgetUsage, UsageVelocity, BudgetConfig } from '@/lib/types';
 
 interface Stats {
   daily: { date: string; memberName: string; model: string; costUsd: number; inputTokens: number; outputTokens: number }[];
   members: { memberName: string; totalCost: number; totalTokens: number }[];
   models: { model: string; count: number; totalCost: number }[];
   teamMembers: { id: string; name: string }[];
-  weeklyBudgets: BudgetUsage[];
-  monthlyBudgets: BudgetUsage[];
-  velocity: Velocity[];
+  weeklyBudgets: MemberBudgetUsage[];
+  monthlyBudgets: MemberBudgetUsage[];
+  velocity: UsageVelocity[];
   budgetConfigs: BudgetConfig[];
+  sessionCount: number;
 }
 
 const PERIOD_OPTIONS = [
@@ -49,18 +29,50 @@ const PERIOD_OPTIONS = [
 
 export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const fetchStats = () => {
+  const fetchStats = useCallback(() => {
+    setError(null);
     fetch(`/api/stats?days=${days}`)
-      .then(r => r.json())
-      .then(setStats);
-  };
+      .then(r => {
+        if (!r.ok) throw new Error(`Server error: ${r.status}`);
+        return r.json();
+      })
+      .then(setStats)
+      .catch(err => setError(err.message || 'Failed to load data'));
+  }, [days]);
 
   useEffect(() => {
     fetchStats();
-  }, [days]);
+  }, [fetchStats]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen" style={{ background: '#09090b' }}>
+        <div className="flex flex-col items-center gap-3">
+          <p style={{ color: '#ef4444', fontSize: '14px', fontWeight: 500 }}>Error</p>
+          <p style={{ color: '#71717a', fontSize: '13px' }}>{error}</p>
+          <button
+            onClick={fetchStats}
+            style={{
+              marginTop: '8px',
+              padding: '6px 16px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#fafafa',
+              background: 'rgba(99,102,241,0.8)',
+              border: '1px solid rgba(99,102,241,0.4)',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!stats) {
     return (
@@ -253,7 +265,7 @@ export default function Home() {
               totalCost={totalCost}
               totalTokens={totalTokens}
               memberCount={filteredTeamMembers.length}
-              sessionCount={filteredDaily.length}
+              sessionCount={stats.sessionCount}
             />
           </div>
 

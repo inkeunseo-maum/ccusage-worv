@@ -32,9 +32,9 @@ collect.mjs: JSONL 트랜스크립트 파싱
     ↓
 모델별 토큰 집계 + 비용 계산
     ↓
-HTTP POST /api/usage ──────────────→ 요청 수신
+HTTP POST /api/usage ──────────────→ 요청 수신 + 서버측 비용 재계산
                                          ↓
-                                     SQLite에 저장
+                                     Supabase (PostgreSQL)에 저장
                                          ↓
                                      웹 대시보드에 표시
 ```
@@ -93,7 +93,8 @@ http://localhost:3000 에서 대시보드를 확인할 수 있습니다.
 
 ### 환경변수
 
-- `DATABASE_PATH` — SQLite DB 파일 경로 (기본값: `packages/dashboard/data.db`)
+- `SUPABASE_URL` — Supabase 프로젝트 URL
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase 서비스 역할 키
 
 ### 테스트 데이터 넣기
 
@@ -172,7 +173,7 @@ pnpm seed
 
 - **플러그인** — Node.js ESM, 외부 의존성 없음, SessionEnd hook
 - **대시보드** — Next.js 16 (App Router), React 19, Recharts, Tailwind CSS 4
-- **DB** — SQLite (better-sqlite3), WAL 모드
+- **DB** — Supabase (PostgreSQL)
 - **패키지 매니저** — pnpm (workspace)
 - **Node.js** — >= 20
 

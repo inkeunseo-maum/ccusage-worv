@@ -1,24 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-
-interface BudgetConfig {
-  id: string;
-  memberId: string | null;
-  budgetType: 'weekly' | 'monthly';
-  budgetUsd: number;
-}
-
-interface TeamMember {
-  id: string;
-  name: string;
-}
+import type { BudgetConfig, TeamMemberSummary } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   budgetConfigs: BudgetConfig[];
-  teamMembers: TeamMember[];
+  teamMembers: TeamMemberSummary[];
   onSaved: () => void;
 }
 

@@ -156,8 +156,18 @@ export const MODEL_PRICING = {
   'claude-haiku-4-5':  { input: 0.8,  output: 4,   cacheRead: 0.08, cacheWrite: 1     },
 };
 
+export function resolveModelKey(model) {
+  if (MODEL_PRICING[model]) return model;
+  const keys = Object.keys(MODEL_PRICING);
+  const match = keys
+    .filter(key => model.startsWith(key))
+    .sort((a, b) => b.length - a.length)[0];
+  return match || 'claude-sonnet-4-6';
+}
+
 export function estimateCost(model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens) {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING['claude-sonnet-4-6'];
+  const key = resolveModelKey(model);
+  const pricing = MODEL_PRICING[key];
   return (
     inputTokens * pricing.input +
     outputTokens * pricing.output +
@@ -175,6 +185,7 @@ export function parseJsonlFile(filePath) {
       const parsed = JSON.parse(line);
       const msg = parsed.message;
       if (msg && msg.model && msg.usage && msg.usage.input_tokens !== undefined) {
+        if (msg.model === '<synthetic>' || msg.model === '') continue;
         entries.push({ model: msg.model, usage: msg.usage, timestamp: parsed.timestamp });
       }
     } catch {}

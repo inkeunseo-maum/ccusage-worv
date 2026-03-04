@@ -5,13 +5,14 @@
     "dev": "pnpm --filter dashboard dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
+    "test:e2e": "npx playwright test",
     "seed": "tsx scripts/seed.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": ["esbuild", "sharp", "unrs-resolver"]
   },
   "devDependencies": {
     "tsx": "^4.0.0",

@@ -1,8 +1,10 @@
 // scripts/seed.ts
+import { MODEL_PRICING, estimateCost } from '../packages/dashboard/src/lib/pricing';
+
 const SERVER = process.argv[2] || 'http://localhost:3000';
 
 const MEMBERS = ['김인근', '박지훈', '이서연', '최동현', '정수민'];
-const MODELS = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
+const MODELS = Object.keys(MODEL_PRICING);
 
 async function seed() {
   for (let dayOffset = 29; dayOffset >= 0; dayOffset--) {
@@ -15,12 +17,8 @@ async function seed() {
       const model = MODELS[Math.floor(Math.random() * MODELS.length)];
       const inputTokens = Math.floor(Math.random() * 50000) + 1000;
       const outputTokens = Math.floor(Math.random() * 20000) + 500;
-
-      const costMap: Record<string, number> = {
-        'claude-opus-4-6': (inputTokens * 15 + outputTokens * 75) / 1_000_000,
-        'claude-sonnet-4-6': (inputTokens * 3 + outputTokens * 15) / 1_000_000,
-        'claude-haiku-4-5': (inputTokens * 0.8 + outputTokens * 4) / 1_000_000,
-      };
+      const cacheCreationTokens = Math.floor(inputTokens * 0.3);
+      const cacheReadTokens = Math.floor(inputTokens * 0.5);
 
       const report = {
         memberName: member,
@@ -29,9 +27,9 @@ async function seed() {
           model,
           inputTokens,
           outputTokens,
-          cacheCreationTokens: Math.floor(inputTokens * 0.3),
-          cacheReadTokens: Math.floor(inputTokens * 0.5),
-          costUsd: costMap[model] || 0.01,
+          cacheCreationTokens,
+          cacheReadTokens,
+          costUsd: estimateCost(model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens),
           projectName: ['worv-web', 'worv-api', 'worv-ml'][Math.floor(Math.random() * 3)],
           recordedAt: date.toISOString(),
         }],
