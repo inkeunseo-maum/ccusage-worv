@@ -208,6 +208,9 @@ export function aggregateByModel(entries) {
       existing.outputTokens += outputTokens;
       existing.cacheCreationTokens += cacheCreationTokens;
       existing.cacheReadTokens += cacheReadTokens;
+      if (entry.timestamp > existing.recordedAt) {
+        existing.recordedAt = entry.timestamp;
+      }
     } else {
       byModel.set(entry.model, {
         model: entry.model, inputTokens, outputTokens,
@@ -344,7 +347,7 @@ async function main() {
   const entries = parseJsonlFile(transcriptPath);
   if (entries.length === 0) return;
   const records = aggregateByModel(entries);
-  const projectName = basename(dirname(dirname(transcriptPath)));
+  const projectName = basename(dirname(transcriptPath));
   records.forEach(r => { r.projectName = projectName; });
   const report = {
     memberName: config.memberName, sessionId, records,

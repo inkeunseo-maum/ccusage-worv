@@ -66,7 +66,7 @@ async function main() {
 
   const records = aggregateByModel(entries);
 
-  const projectName = basename(dirname(dirname(transcriptPath)));
+  const projectName = basename(dirname(transcriptPath));
   records.forEach(r => { r.projectName = projectName; });
 
   const report = {
