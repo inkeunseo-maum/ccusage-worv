@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { insertUsageReport } from '@/lib/repository';
+import { insertUsageReport, getOrCreateMember, saveUtilization } from '@/lib/repository';
 import type { UsageReport } from '@/lib/types';
 import { estimateCost } from '@/lib/pricing';
 
@@ -86,6 +86,22 @@ export async function POST(request: Request) {
     }
 
     await insertUsageReport({ ...report, records: validatedRecords });
+
+    // Save utilization snapshot if provided
+    if (report.utilization && (report.utilization.fiveHour !== null || report.utilization.sevenDay !== null)) {
+      try {
+        const member = await getOrCreateMember(report.memberName);
+        await saveUtilization(
+          member.id,
+          typeof report.utilization.fiveHour === 'number' ? report.utilization.fiveHour : null,
+          typeof report.utilization.sevenDay === 'number' ? report.utilization.sevenDay : null,
+        );
+      } catch (err) {
+        console.error('Failed to save utilization:', err);
+        // Don't fail the whole request if utilization save fails
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Failed to save usage report:', err);

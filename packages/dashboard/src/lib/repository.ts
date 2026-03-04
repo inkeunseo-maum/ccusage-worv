@@ -1,5 +1,5 @@
 import { supabase } from './db';
-import type { UsageReport, TeamMember, MemberBudgetUsage, UsageVelocity, BudgetConfig } from './types';
+import type { UsageReport, TeamMember, MemberBudgetUsage, UsageVelocity, BudgetConfig, UtilizationSnapshot } from './types';
 
 export async function getOrCreateMember(name: string): Promise<TeamMember> {
   const { data: existing } = await supabase
@@ -183,6 +183,23 @@ export async function getRollingUsage5h() {
 
 export async function getRollingUsage7d() {
   const { data, error } = await supabase.rpc('get_rolling_usage_7d');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveUtilization(memberId: string, fiveHourPct: number | null, sevenDayPct: number | null): Promise<void> {
+  const { error } = await supabase
+    .from('utilization_snapshots')
+    .insert({
+      member_id: memberId,
+      five_hour_pct: fiveHourPct,
+      seven_day_pct: sevenDayPct,
+    });
+  if (error) throw error;
+}
+
+export async function getLatestUtilization(): Promise<UtilizationSnapshot[]> {
+  const { data, error } = await supabase.rpc('get_latest_utilization');
   if (error) throw error;
   return data || [];
 }
