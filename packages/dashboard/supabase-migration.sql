@@ -205,3 +205,53 @@ RETURNS INTEGER LANGUAGE sql STABLE AS $$
   FROM usage_records
   WHERE recorded_at >= since_date;
 $$;
+
+-- 11. RPC 함수: 5시간 롤링 사용량
+CREATE OR REPLACE FUNCTION get_rolling_usage_5h()
+RETURNS TABLE (
+  "memberId" UUID,
+  "memberName" TEXT,
+  "totalCostUsd" DOUBLE PRECISION,
+  "totalInputTokens" BIGINT,
+  "totalOutputTokens" BIGINT,
+  "sessionCount" INTEGER
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    tm.id AS "memberId",
+    tm.name AS "memberName",
+    COALESCE(SUM(ur.cost_usd), 0) AS "totalCostUsd",
+    COALESCE(SUM(ur.input_tokens), 0)::BIGINT AS "totalInputTokens",
+    COALESCE(SUM(ur.output_tokens), 0)::BIGINT AS "totalOutputTokens",
+    COUNT(DISTINCT ur.session_id)::INTEGER AS "sessionCount"
+  FROM team_members tm
+  LEFT JOIN usage_records ur
+    ON ur.member_id = tm.id
+    AND ur.recorded_at >= (now() - INTERVAL '5 hours')
+  GROUP BY tm.id, tm.name
+  ORDER BY "totalCostUsd" DESC;
+$$;
+
+-- 12. RPC 함수: 7일 롤링 사용량
+CREATE OR REPLACE FUNCTION get_rolling_usage_7d()
+RETURNS TABLE (
+  "memberId" UUID,
+  "memberName" TEXT,
+  "totalCostUsd" DOUBLE PRECISION,
+  "totalInputTokens" BIGINT,
+  "totalOutputTokens" BIGINT,
+  "sessionCount" INTEGER
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    tm.id AS "memberId",
+    tm.name AS "memberName",
+    COALESCE(SUM(ur.cost_usd), 0) AS "totalCostUsd",
+    COALESCE(SUM(ur.input_tokens), 0)::BIGINT AS "totalInputTokens",
+    COALESCE(SUM(ur.output_tokens), 0)::BIGINT AS "totalOutputTokens",
+    COUNT(DISTINCT ur.session_id)::INTEGER AS "sessionCount"
+  FROM team_members tm
+  LEFT JOIN usage_records ur
+    ON ur.member_id = tm.id
+    AND ur.recorded_at >= (now() - INTERVAL '7 days')
+  GROUP BY tm.id, tm.name
+  ORDER BY "totalCostUsd" DESC;
+$$;

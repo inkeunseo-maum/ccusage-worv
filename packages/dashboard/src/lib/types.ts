@@ -52,3 +52,12 @@ export interface BudgetConfig {
   budgetType: 'weekly' | 'monthly';
   budgetUsd: number;
 }
+
+export interface RollingUsage {
+  memberId: string;
+  memberName: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  sessionCount: number;
+}

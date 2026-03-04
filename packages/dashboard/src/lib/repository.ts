@@ -174,3 +174,15 @@ export async function getAllBudgets(): Promise<BudgetConfig[]> {
     budgetUsd: b.budget_usd,
   }));
 }
+
+export async function getRollingUsage5h() {
+  const { data, error } = await supabase.rpc('get_rolling_usage_5h');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getRollingUsage7d() {
+  const { data, error } = await supabase.rpc('get_rolling_usage_7d');
+  if (error) throw error;
+  return data || [];
+}
