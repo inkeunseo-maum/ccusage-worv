@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 // --- Paths ---
 
@@ -146,5 +147,54 @@ export async function sendReport(serverUrl, report, apiKey) {
 
   if (!res.ok) {
     throw new Error(`Server responded with ${res.status}: ${await res.text()}`);
+  }
+}
+
+// --- Anthropic OAuth Usage API ---
+
+export async function fetchUtilization() {
+  try {
+    let accessToken = null;
+
+    // Try credentials file first
+    const credPath = join(homedir(), '.claude', '.credentials.json');
+    if (existsSync(credPath)) {
+      try {
+        const creds = JSON.parse(readFileSync(credPath, 'utf-8'));
+        accessToken = creds?.claudeAiOauth?.accessToken;
+      } catch {}
+    }
+
+    // Try macOS Keychain as fallback
+    if (!accessToken && process.platform === 'darwin') {
+      try {
+        const raw = execSync(
+          '/usr/bin/security find-generic-password -s "Claude Code-credentials" -w',
+          { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] }
+        ).trim();
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          accessToken = parsed?.claudeAiOauth?.accessToken || parsed?.accessToken;
+        }
+      } catch {}
+    }
+
+    if (!accessToken) return null;
+
+    const resp = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      fiveHour: typeof data?.five_hour?.utilization === 'number' ? data.five_hour.utilization : null,
+      sevenDay: typeof data?.seven_day?.utilization === 'number' ? data.seven_day.utilization : null,
+    };
+  } catch {
+    return null;
   }
 }
