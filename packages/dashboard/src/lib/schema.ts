@@ -35,6 +35,16 @@ CREATE TABLE IF NOT EXISTS budget_configs (
   UNIQUE (member_id, budget_type)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_configs_team_default
+  ON budget_configs(budget_type) WHERE member_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_budget_configs_member
+  ON budget_configs(member_id);
+
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usage_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budget_configs ENABLE ROW LEVEL SECURITY;
+
 -- ============================================
 -- Indexes
 -- ============================================
@@ -42,6 +52,10 @@ CREATE TABLE IF NOT EXISTS budget_configs (
 CREATE INDEX IF NOT EXISTS idx_usage_member ON usage_records(member_id);
 CREATE INDEX IF NOT EXISTS idx_usage_recorded ON usage_records(recorded_at);
 CREATE INDEX IF NOT EXISTS idx_usage_session ON usage_records(session_id);
+
+-- Deduplicate: same session+member+model combination
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique_session_model
+  ON usage_records(session_id, member_id, model);
 
 -- ============================================
 -- RPC Functions
@@ -72,7 +86,7 @@ RETURNS TABLE (
   JOIN team_members tm ON tm.id = ur.member_id
   WHERE ur.recorded_at >= since_date
   GROUP BY date, tm.name, ur.model
-  ORDER BY date;
+  ORDER BY date DESC;
 $$ LANGUAGE sql STABLE;
 
 -- Per-member total usage
@@ -147,7 +161,7 @@ RETURNS TABLE (
   "memberId" UUID,
   "memberName" TEXT,
   "dailyAvgUsd" DOUBLE PRECISION,
-  "activeDays" BIGINT
+  "activeDays" INTEGER
 ) AS $$
   SELECT
     tm.id AS "memberId",
@@ -157,7 +171,7 @@ RETURNS TABLE (
       THEN SUM(ur.cost_usd) / COUNT(DISTINCT to_char(ur.recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))
       ELSE 0
     END AS "dailyAvgUsd",
-    COUNT(DISTINCT to_char(ur.recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))::BIGINT AS "activeDays"
+    COUNT(DISTINCT to_char(ur.recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))::INTEGER AS "activeDays"
   FROM team_members tm
   LEFT JOIN usage_records ur ON ur.member_id = tm.id AND ur.recorded_at >= since_date
   GROUP BY tm.id, tm.name;
@@ -165,14 +179,21 @@ $$ LANGUAGE sql STABLE;
 
 -- Upsert budget configuration
 CREATE OR REPLACE FUNCTION upsert_budget(p_member_id UUID, p_budget_type TEXT, p_budget_usd DOUBLE PRECISION)
-RETURNS VOID AS $$
+RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
-  INSERT INTO budget_configs (member_id, budget_type, budget_usd, updated_at)
-  VALUES (p_member_id, p_budget_type, p_budget_usd, now())
-  ON CONFLICT (member_id, budget_type)
-  DO UPDATE SET budget_usd = EXCLUDED.budget_usd, updated_at = now();
+  IF p_member_id IS NULL THEN
+    INSERT INTO budget_configs (member_id, budget_type, budget_usd, updated_at)
+    VALUES (NULL, p_budget_type, p_budget_usd, now())
+    ON CONFLICT (budget_type) WHERE member_id IS NULL
+    DO UPDATE SET budget_usd = p_budget_usd, updated_at = now();
+  ELSE
+    INSERT INTO budget_configs (member_id, budget_type, budget_usd, updated_at)
+    VALUES (p_member_id, p_budget_type, p_budget_usd, now())
+    ON CONFLICT (member_id, budget_type)
+    DO UPDATE SET budget_usd = p_budget_usd, updated_at = now();
+  END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Distinct session count
 CREATE OR REPLACE FUNCTION get_session_count(since_date TIMESTAMPTZ)
