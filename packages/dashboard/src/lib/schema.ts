@@ -41,6 +41,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_configs_team_default
 CREATE INDEX IF NOT EXISTS idx_budget_configs_member
   ON budget_configs(member_id);
 
+CREATE TABLE IF NOT EXISTS utilization_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  member_id UUID NOT NULL REFERENCES team_members(id),
+  five_hour_pct DOUBLE PRECISION,
+  seven_day_pct DOUBLE PRECISION,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE utilization_snapshots ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_utilization_member ON utilization_snapshots(member_id);
+CREATE INDEX IF NOT EXISTS idx_utilization_recorded ON utilization_snapshots(recorded_at);
+
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE budget_configs ENABLE ROW LEVEL SECURITY;
@@ -226,6 +239,27 @@ RETURNS TABLE (
     AND ur.recorded_at >= (now() - INTERVAL '5 hours')
   GROUP BY tm.id, tm.name
   ORDER BY "totalCostUsd" DESC;
+$$;
+
+-- Latest utilization snapshot per member (within last 6 hours)
+CREATE OR REPLACE FUNCTION get_latest_utilization()
+RETURNS TABLE (
+  "memberId" UUID,
+  "memberName" TEXT,
+  "fiveHourPct" DOUBLE PRECISION,
+  "sevenDayPct" DOUBLE PRECISION,
+  "recordedAt" TIMESTAMPTZ
+) LANGUAGE sql STABLE AS $$
+  SELECT DISTINCT ON (us.member_id)
+    us.member_id AS "memberId",
+    tm.name AS "memberName",
+    us.five_hour_pct AS "fiveHourPct",
+    us.seven_day_pct AS "sevenDayPct",
+    us.recorded_at AS "recordedAt"
+  FROM utilization_snapshots us
+  JOIN team_members tm ON tm.id = us.member_id
+  WHERE us.recorded_at >= (now() - INTERVAL '6 hours')
+  ORDER BY us.member_id, us.recorded_at DESC;
 $$;
 
 -- 7-day rolling usage per member

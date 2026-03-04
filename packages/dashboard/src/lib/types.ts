@@ -4,6 +4,10 @@ export interface UsageReport {
   sessionId: string;
   records: UsageRecord[];
   reportedAt: string;
+  utilization?: {
+    fiveHour: number | null;
+    sevenDay: number | null;
+  };
 }
 
 export interface UsageRecord {
@@ -60,4 +64,12 @@ export interface RollingUsage {
   totalInputTokens: number;
   totalOutputTokens: number;
   sessionCount: number;
+}
+
+export interface UtilizationSnapshot {
+  memberId: string;
+  memberName: string;
+  fiveHourPct: number | null;
+  sevenDayPct: number | null;
+  recordedAt: string;
 }
