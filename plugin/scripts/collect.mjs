@@ -16,6 +16,7 @@ import {
   parseJsonlFile,
   aggregateByModel,
   sendReport,
+  fetchUtilization,
 } from './lib/common.mjs';
 
 // --- Stdin ---
@@ -69,11 +70,14 @@ async function main() {
   const projectName = basename(dirname(transcriptPath));
   records.forEach(r => { r.projectName = projectName; });
 
+  const utilization = await fetchUtilization();
+
   const report = {
     memberName: config.memberName,
     sessionId,
     records,
     reportedAt: new Date().toISOString(),
+    ...(utilization && { utilization }),
   };
 
   try {
