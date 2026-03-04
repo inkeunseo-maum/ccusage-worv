@@ -114,9 +114,11 @@ pnpm seed
 
 플러그인이 모델별 토큰 가격을 기반으로 비용을 추정합니다 (USD per 1M tokens):
 
-- **claude-opus-4-6** — input: $15, output: $75, cache read: $1.5, cache write: $18.75
-- **claude-sonnet-4-6** — input: $3, output: $15, cache read: $0.3, cache write: $3.75
-- **claude-haiku-4-5** — input: $0.8, output: $4, cache read: $0.08, cache write: $1
+- **claude-opus-4-6** — input: $5, output: $25, cache read: $0.50, cache write: $6.25
+- **claude-sonnet-4-6** — input: $3, output: $15, cache read: $0.30, cache write: $3.75
+- **claude-haiku-4-5** — input: $1, output: $5, cache read: $0.10, cache write: $1.25
+
+> 서버는 클라이언트가 보낸 `costUsd`를 무시하고 서버측에서 재계산합니다.
 
 ## API
 
