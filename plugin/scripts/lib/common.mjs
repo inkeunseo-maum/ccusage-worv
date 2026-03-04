@@ -105,6 +105,9 @@ export function aggregateByModel(entries) {
       existing.outputTokens += outputTokens;
       existing.cacheCreationTokens += cacheCreationTokens;
       existing.cacheReadTokens += cacheReadTokens;
+      if (entry.timestamp > existing.recordedAt) {
+        existing.recordedAt = entry.timestamp;
+      }
     } else {
       byModel.set(entry.model, {
         model: entry.model,
