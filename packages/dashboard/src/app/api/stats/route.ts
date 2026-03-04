@@ -6,6 +6,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30', 10);
 
+    if (isNaN(days) || days < 1 || days > 365) {
+      return NextResponse.json({ error: 'Invalid days parameter (1-365)' }, { status: 400 });
+    }
+
     const [daily, members, models, teamMembers, weeklyBudgets, monthlyBudgets, velocity, budgetConfigs, sessionCount] = await Promise.all([
       getDailyUsage(days),
       getMemberUsage(days),
