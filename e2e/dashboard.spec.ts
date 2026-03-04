@@ -35,6 +35,8 @@ test.describe('Dashboard Page', () => {
       velocity: [],
       budgetConfigs: [],
       sessionCount: 2,
+      rolling5h: [],
+      rolling7d: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -56,9 +58,9 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText('37.0K').first()).toBeVisible();
 
     // Period pills should exist
-    await expect(page.getByRole('button', { name: '7일' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '30일' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '90일' })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: '7일' })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: '30일' })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: '90일' })).toBeVisible();
   });
 
   test('should switch period when pill is clicked', async ({ page }) => {
@@ -72,6 +74,8 @@ test.describe('Dashboard Page', () => {
       velocity: [],
       budgetConfigs: [],
       sessionCount: 0,
+      rolling5h: [],
+      rolling7d: [],
     };
 
     let lastRequestedDays: string | null = null;
@@ -89,12 +93,12 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText('Team Dashboard')).toBeVisible({ timeout: 10000 });
 
     // Click 7-day pill
-    await page.getByText('7일').click();
+    await page.locator('header').getByText('7일').click();
     await page.waitForTimeout(500);
     expect(lastRequestedDays).toBe('7');
 
     // Click 90-day pill
-    await page.getByText('90일').click();
+    await page.locator('header').getByText('90일').click();
     await page.waitForTimeout(500);
     expect(lastRequestedDays).toBe('90');
   });
@@ -112,6 +116,8 @@ test.describe('Dashboard Page', () => {
       velocity: [],
       budgetConfigs: [],
       sessionCount: 42, // Intentionally different from daily.length (1)
+      rolling5h: [],
+      rolling7d: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -144,6 +150,8 @@ test.describe('Dashboard Page', () => {
       velocity: [],
       budgetConfigs: [],
       sessionCount: 5,
+      rolling5h: [],
+      rolling7d: [],
     };
 
     await page.route('**/api/stats*', (route) =>
@@ -173,6 +181,8 @@ test.describe('Dashboard Page', () => {
       velocity: [],
       budgetConfigs: [],
       sessionCount: 0,
+      rolling5h: [],
+      rolling7d: [],
     };
 
     await page.route('**/api/stats*', (route) =>
