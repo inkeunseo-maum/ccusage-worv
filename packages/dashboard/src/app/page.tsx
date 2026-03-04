@@ -8,7 +8,7 @@ import { ModelPieChart } from '@/components/ModelPieChart';
 import { BudgetPanel } from '@/components/BudgetPanel';
 import { BudgetSettings } from '@/components/BudgetSettings';
 import { RollingUsagePanel } from '@/components/RollingUsagePanel';
-import type { MemberBudgetUsage, UsageVelocity, BudgetConfig, RollingUsage } from '@/lib/types';
+import type { MemberBudgetUsage, UsageVelocity, BudgetConfig, RollingUsage, UtilizationSnapshot } from '@/lib/types';
 
 interface Stats {
   daily: { date: string; memberName: string; model: string; costUsd: number; inputTokens: number; outputTokens: number }[];
@@ -22,6 +22,7 @@ interface Stats {
   sessionCount: number;
   rolling5h: RollingUsage[];
   rolling7d: RollingUsage[];
+  utilization: UtilizationSnapshot[];
 }
 
 const PERIOD_OPTIONS = [
@@ -289,6 +290,7 @@ export default function Home() {
           {/* Rolling usage panel */}
           <div className="animate-fade-in-up animate-delay-4" style={{ marginBottom: '24px' }}>
             <RollingUsagePanel
+              utilization={stats.utilization}
               rolling5h={stats.rolling5h}
               rolling7d={stats.rolling7d}
             />

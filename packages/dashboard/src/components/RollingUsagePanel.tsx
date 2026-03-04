@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import type { RollingUsage } from '@/lib/types';
+import type { RollingUsage, UtilizationSnapshot } from '@/lib/types';
 
 interface Props {
+  utilization: UtilizationSnapshot[];
   rolling5h: RollingUsage[];
   rolling7d: RollingUsage[];
 }
@@ -14,60 +14,75 @@ function getInitial(name: string): string {
   return name.charAt(0).toUpperCase();
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+function getBarColor(pct: number): string {
+  if (pct >= 80) return '#ef4444';
+  if (pct >= 50) return '#f59e0b';
+  return '#22c55e';
 }
 
-export function RollingUsagePanel({ rolling5h, rolling7d }: Props) {
-  const [tab, setTab] = useState<'5h' | '7d'>('5h');
+function formatPct(v: number | null): string {
+  if (v === null || v === undefined) return '—';
+  return `${Math.round(v)}%`;
+}
 
-  const rows = tab === '5h' ? rolling5h : rolling7d;
-  const hasData = rows.some(r => r.totalCostUsd > 0 || r.sessionCount > 0);
+function UtilBar({ label, value }: { label: string; value: number | null }) {
+  const pct = value ?? 0;
+  const color = getBarColor(pct);
+  const hasValue = value !== null && value !== undefined;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+      <span style={{ fontSize: '10px', color: '#71717a', width: '18px', flexShrink: 0, textAlign: 'right' }}>{label}</span>
+      <div style={{
+        flex: 1,
+        height: '6px',
+        borderRadius: '3px',
+        background: 'rgba(255,255,255,0.06)',
+        overflow: 'hidden',
+      }}>
+        {hasValue && (
+          <div style={{
+            width: `${Math.min(pct, 100)}%`,
+            height: '100%',
+            borderRadius: '3px',
+            background: color,
+            transition: 'width 0.3s ease',
+          }} />
+        )}
+      </div>
+      <span style={{
+        fontSize: '11px',
+        fontWeight: 600,
+        color: hasValue ? color : '#3f3f46',
+        width: '32px',
+        textAlign: 'right',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        {formatPct(value)}
+      </span>
+    </div>
+  );
+}
+
+export function RollingUsagePanel({ utilization, rolling5h, rolling7d }: Props) {
+  const hasUtilization = utilization.length > 0;
+
+  // Build a cost lookup from rolling data
+  const costMap5h = new Map(rolling5h.map(r => [r.memberName, r.totalCostUsd]));
+  const costMap7d = new Map(rolling7d.map(r => [r.memberName, r.totalCostUsd]));
 
   return (
     <div className="glass-card" style={{ borderRadius: '16px', padding: '24px' }}>
-      {/* Header + Tab */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>
-          <h2 style={{ fontSize: '15px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', marginBottom: '2px' }}>
-            사용량 윈도우
-          </h2>
-          <p style={{ fontSize: '12px', color: '#52525b' }}>5h / 7d rolling usage per member</p>
-        </div>
-        <div style={{
-          display: 'flex',
-          gap: '2px',
-          padding: '2px',
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}>
-          {(['5h', '7d'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                border: 'none',
-                color: tab === t ? '#fafafa' : '#71717a',
-                background: tab === t ? 'rgba(99,102,241,0.15)' : 'transparent',
-              }}
-            >
-              {t === '5h' ? '5시간' : '7일'}
-            </button>
-          ))}
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom: '20px' }}>
+        <h2 style={{ fontSize: '15px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', marginBottom: '2px' }}>
+          Rate Limit Status
+        </h2>
+        <p style={{ fontSize: '12px', color: '#52525b' }}>Anthropic API 5h / 7d utilization</p>
       </div>
 
-      {/* Member rows or empty state */}
-      {!hasData ? (
+      {/* Utilization rows or empty state */}
+      {!hasUtilization ? (
         <div style={{
           padding: '32px 16px',
           textAlign: 'center',
@@ -75,13 +90,14 @@ export function RollingUsagePanel({ rolling5h, rolling7d }: Props) {
           fontSize: '13px',
         }}>
           <div style={{ fontSize: '24px', marginBottom: '8px', opacity: 0.5 }}>~</div>
-          데이터가 없습니다
+          아직 수집된 데이터가 없습니다
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {rows.filter(r => r.totalCostUsd > 0 || r.sessionCount > 0).map((m, idx) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {utilization.map((m, idx) => {
             const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
-            const totalTokens = m.totalInputTokens + m.totalOutputTokens;
+            const cost5h = costMap5h.get(m.memberName) ?? 0;
+            const cost7d = costMap7d.get(m.memberName) ?? 0;
 
             return (
               <div
@@ -99,7 +115,6 @@ export function RollingUsagePanel({ rolling5h, rolling7d }: Props) {
                   (e.currentTarget as HTMLDivElement).style.background = 'transparent';
                 }}
               >
-                {/* Avatar, name, cost */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   {/* Avatar */}
                   <div style={{
@@ -119,40 +134,28 @@ export function RollingUsagePanel({ rolling5h, rolling7d }: Props) {
                     {getInitial(m.memberName)}
                   </div>
 
-                  {/* Name */}
-                  <span style={{
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    color: '#e4e4e7',
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {m.memberName}
-                  </span>
-
-                  {/* Cost + tokens/sessions */}
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      color: '#fafafa',
-                      fontVariantNumeric: 'tabular-nums',
-                      marginBottom: '2px',
-                    }}>
-                      ${m.totalCostUsd.toFixed(2)}
+                  {/* Name + Bars */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        color: '#e4e4e7',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {m.memberName}
+                      </span>
+                      {(cost5h > 0 || cost7d > 0) && (
+                        <span style={{ fontSize: '10px', color: '#3f3f46', flexShrink: 0, marginLeft: '8px' }}>
+                          5h ${cost5h.toFixed(2)} · 7d ${cost7d.toFixed(2)}
+                        </span>
+                      )}
                     </div>
-                    <div style={{
-                      display: 'flex',
-                      gap: '8px',
-                      justifyContent: 'flex-end',
-                      fontSize: '11px',
-                      color: '#52525b',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>
-                      <span>{formatTokens(totalTokens)} tok</span>
-                      <span>{m.sessionCount} sess</span>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <UtilBar label="5h" value={m.fiveHourPct} />
+                      <UtilBar label="7d" value={m.sevenDayPct} />
                     </div>
                   </div>
                 </div>
