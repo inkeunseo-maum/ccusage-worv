@@ -197,3 +197,11 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- 10. RPC 함수: 세션 수 (distinct)
+CREATE OR REPLACE FUNCTION get_session_count(since_date TIMESTAMPTZ)
+RETURNS INTEGER LANGUAGE sql STABLE AS $$
+  SELECT COUNT(DISTINCT session_id)::INTEGER
+  FROM usage_records
+  WHERE recorded_at >= since_date;
+$$;

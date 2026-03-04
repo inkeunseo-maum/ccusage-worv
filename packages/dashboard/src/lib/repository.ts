@@ -110,13 +110,9 @@ export async function getModelDistribution(days: number = 30): Promise<{ model: 
 export async function getSessionCount(days: number = 30): Promise<number> {
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  const { count, error } = await supabase
-    .from('usage_records')
-    .select('session_id', { count: 'exact', head: true })
-    .gte('recorded_at', since);
-
+  const { data, error } = await supabase.rpc('get_session_count', { since_date: since });
   if (error) throw error;
-  return count || 0;
+  return data || 0;
 }
 
 // 예산 관련 함수

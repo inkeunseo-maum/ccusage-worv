@@ -173,4 +173,12 @@ BEGIN
   DO UPDATE SET budget_usd = EXCLUDED.budget_usd, updated_at = now();
 END;
 $$ LANGUAGE plpgsql;
+
+-- Distinct session count
+CREATE OR REPLACE FUNCTION get_session_count(since_date TIMESTAMPTZ)
+RETURNS INTEGER LANGUAGE sql STABLE AS $$
+  SELECT COUNT(DISTINCT session_id)::INTEGER
+  FROM usage_records
+  WHERE recorded_at >= since_date;
+$$;
 `;
