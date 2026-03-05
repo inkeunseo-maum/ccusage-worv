@@ -16,6 +16,10 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
+    env: {
+      SUPABASE_URL: process.env.SUPABASE_URL || 'http://localhost:54321',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key-for-e2e',
+    },
   },
   projects: [
     {

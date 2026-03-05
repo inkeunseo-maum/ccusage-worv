@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 // --- Paths ---
 
@@ -35,13 +36,23 @@ export function saveSentSessions(sent) {
 // --- Pricing (USD per 1M tokens) ---
 
 export const MODEL_PRICING = {
-  'claude-opus-4-6':   { input: 15,   output: 75,  cacheRead: 1.5,  cacheWrite: 18.75 },
-  'claude-sonnet-4-6': { input: 3,    output: 15,  cacheRead: 0.3,  cacheWrite: 3.75  },
-  'claude-haiku-4-5':  { input: 0.8,  output: 4,   cacheRead: 0.08, cacheWrite: 1     },
+  'claude-opus-4-6':   { input: 5,  output: 25, cacheRead: 0.50, cacheWrite: 6.25 },
+  'claude-sonnet-4-6': { input: 3,  output: 15, cacheRead: 0.30, cacheWrite: 3.75 },
+  'claude-haiku-4-5':  { input: 1,  output: 5,  cacheRead: 0.10, cacheWrite: 1.25 },
 };
 
+export function resolveModelKey(model) {
+  if (MODEL_PRICING[model]) return model;
+  const keys = Object.keys(MODEL_PRICING);
+  const match = keys
+    .filter(key => model.startsWith(key))
+    .sort((a, b) => b.length - a.length)[0];
+  return match || 'claude-sonnet-4-6';
+}
+
 export function estimateCost(model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens) {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING['claude-sonnet-4-6'];
+  const key = resolveModelKey(model);
+  const pricing = MODEL_PRICING[key];
   return (
     inputTokens * pricing.input +
     outputTokens * pricing.output +
@@ -62,6 +73,7 @@ export function parseJsonlFile(filePath) {
       const parsed = JSON.parse(line);
       const msg = parsed.message;
       if (msg && msg.model && msg.usage && msg.usage.input_tokens !== undefined) {
+        if (msg.model === '<synthetic>' || msg.model === '') continue;
         entries.push({
           model: msg.model,
           usage: msg.usage,
@@ -94,6 +106,9 @@ export function aggregateByModel(entries) {
       existing.outputTokens += outputTokens;
       existing.cacheCreationTokens += cacheCreationTokens;
       existing.cacheReadTokens += cacheReadTokens;
+      if (entry.timestamp > existing.recordedAt) {
+        existing.recordedAt = entry.timestamp;
+      }
     } else {
       byModel.set(entry.model, {
         model: entry.model,
@@ -132,5 +147,54 @@ export async function sendReport(serverUrl, report, apiKey) {
 
   if (!res.ok) {
     throw new Error(`Server responded with ${res.status}: ${await res.text()}`);
+  }
+}
+
+// --- Anthropic OAuth Usage API ---
+
+export async function fetchUtilization() {
+  try {
+    let accessToken = null;
+
+    // Try credentials file first
+    const credPath = join(homedir(), '.claude', '.credentials.json');
+    if (existsSync(credPath)) {
+      try {
+        const creds = JSON.parse(readFileSync(credPath, 'utf-8'));
+        accessToken = creds?.claudeAiOauth?.accessToken;
+      } catch {}
+    }
+
+    // Try macOS Keychain as fallback
+    if (!accessToken && process.platform === 'darwin') {
+      try {
+        const raw = execSync(
+          '/usr/bin/security find-generic-password -s "Claude Code-credentials" -w',
+          { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] }
+        ).trim();
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          accessToken = parsed?.claudeAiOauth?.accessToken || parsed?.accessToken;
+        }
+      } catch {}
+    }
+
+    if (!accessToken) return null;
+
+    const resp = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      fiveHour: typeof data?.five_hour?.utilization === 'number' ? data.five_hour.utilization : null,
+      sevenDay: typeof data?.seven_day?.utilization === 'number' ? data.seven_day.utilization : null,
+    };
+  } catch {
+    return null;
   }
 }

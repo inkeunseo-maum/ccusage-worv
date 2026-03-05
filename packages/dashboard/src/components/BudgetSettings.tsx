@@ -16,6 +16,7 @@ export function BudgetSettings({ isOpen, onClose, budgetConfigs, teamMembers, on
   const [teamMonthly, setTeamMonthly] = useState('');
   const [memberOverrides, setMemberOverrides] = useState<Record<string, { weekly: string; monthly: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -41,44 +42,58 @@ export function BudgetSettings({ isOpen, onClose, budgetConfigs, teamMembers, on
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+    setError(null);
     try {
       const requests: Promise<Response>[] = [];
 
       // 팀 전체 기본값
       if (teamWeekly) {
+        const val = parseFloat(teamWeekly);
+        if (isNaN(val) || val < 0) { setError('주간 예산: 유효한 금액을 입력하세요'); setSaving(false); return; }
         requests.push(fetch('/api/budgets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memberId: null, budgetType: 'weekly', budgetUsd: parseFloat(teamWeekly) }),
+          body: JSON.stringify({ memberId: null, budgetType: 'weekly', budgetUsd: val }),
         }));
       }
       if (teamMonthly) {
+        const val = parseFloat(teamMonthly);
+        if (isNaN(val) || val < 0) { setError('월간 예산: 유효한 금액을 입력하세요'); setSaving(false); return; }
         requests.push(fetch('/api/budgets', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memberId: null, budgetType: 'monthly', budgetUsd: parseFloat(teamMonthly) }),
+          body: JSON.stringify({ memberId: null, budgetType: 'monthly', budgetUsd: val }),
         }));
       }
 
       // 개별 오버라이드
       for (const [memberId, vals] of Object.entries(memberOverrides)) {
         if (vals.weekly) {
+          const val = parseFloat(vals.weekly);
+          if (isNaN(val) || val < 0) { setError('개별 주간 예산: 유효한 금액을 입력하세요'); setSaving(false); return; }
           requests.push(fetch('/api/budgets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ memberId, budgetType: 'weekly', budgetUsd: parseFloat(vals.weekly) }),
+            body: JSON.stringify({ memberId, budgetType: 'weekly', budgetUsd: val }),
           }));
         }
         if (vals.monthly) {
+          const val = parseFloat(vals.monthly);
+          if (isNaN(val) || val < 0) { setError('개별 월간 예산: 유효한 금액을 입력하세요'); setSaving(false); return; }
           requests.push(fetch('/api/budgets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ memberId, budgetType: 'monthly', budgetUsd: parseFloat(vals.monthly) }),
+            body: JSON.stringify({ memberId, budgetType: 'monthly', budgetUsd: val }),
           }));
         }
       }
 
-      await Promise.all(requests);
+      const responses = await Promise.all(requests);
+      const failed = responses.filter(r => !r.ok);
+      if (failed.length > 0) {
+        setError('일부 예산 저장에 실패했습니다');
+        return;
+      }
       onSaved();
       onClose();
     } finally {
@@ -169,6 +184,19 @@ export function BudgetSettings({ isOpen, onClose, budgetConfigs, teamMembers, on
 
         {/* Body */}
         <div style={{ padding: '20px 24px' }}>
+          {error && (
+            <div style={{
+              padding: '8px 12px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#fca5a5',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.2)',
+            }}>
+              {error}
+            </div>
+          )}
           {/* Team defaults */}
           <div style={{ marginBottom: '24px' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>

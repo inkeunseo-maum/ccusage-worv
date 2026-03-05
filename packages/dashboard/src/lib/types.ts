@@ -4,6 +4,10 @@ export interface UsageReport {
   sessionId: string;
   records: UsageRecord[];
   reportedAt: string;
+  utilization?: {
+    fiveHour: number | null;
+    sevenDay: number | null;
+  };
 }
 
 export interface UsageRecord {
@@ -51,4 +55,21 @@ export interface BudgetConfig {
   memberId: string | null;
   budgetType: 'weekly' | 'monthly';
   budgetUsd: number;
+}
+
+export interface RollingUsage {
+  memberId: string;
+  memberName: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  sessionCount: number;
+}
+
+export interface UtilizationSnapshot {
+  memberId: string;
+  memberName: string;
+  fiveHourPct: number | null;
+  sevenDayPct: number | null;
+  recordedAt: string;
 }

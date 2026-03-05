@@ -10,13 +10,9 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import {
-  CLAUDE_PROJECTS_DIR,
-  loadConfig,
-  loadSentSessions,
-  saveSentSessions,
-  parseJsonlFile,
-  aggregateByModel,
-  sendReport,
+  CLAUDE_PROJECTS_DIR, loadConfig, loadSentSessions,
+  saveSentSessions, parseJsonlFile, aggregateByModel, sendReport,
+  fetchUtilization,
 } from './lib/common.mjs';
 
 // 7일 이내 세션만 catch-up (너무 오래된 건 무시)
@@ -75,6 +71,8 @@ export async function runCatchup(configOverride) {
 
   if (unsent.length === 0) return { success: true, total: 0 };
 
+  const utilization = await fetchUtilization();
+
   let successCount = 0;
 
   for (const { sessionId, filePath, projectName } of unsent) {
@@ -89,10 +87,9 @@ export async function runCatchup(configOverride) {
       records.forEach(r => { r.projectName = projectName; });
 
       const report = {
-        memberName: config.memberName,
-        sessionId,
-        records,
+        memberName: config.memberName, sessionId, records,
         reportedAt: new Date().toISOString(),
+        ...(utilization && { utilization }),
       };
 
       await sendReport(config.serverUrl, report, config.apiKey);

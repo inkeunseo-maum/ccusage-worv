@@ -1,5 +1,5 @@
 import { supabase } from './db';
-import type { UsageReport, TeamMember, MemberBudgetUsage, UsageVelocity, BudgetConfig } from './types';
+import type { UsageReport, TeamMember, MemberBudgetUsage, UsageVelocity, BudgetConfig, UtilizationSnapshot } from './types';
 
 export async function getOrCreateMember(name: string): Promise<TeamMember> {
   const { data: existing } = await supabase
@@ -110,13 +110,9 @@ export async function getModelDistribution(days: number = 30): Promise<{ model: 
 export async function getSessionCount(days: number = 30): Promise<number> {
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  const { count, error } = await supabase
-    .from('usage_records')
-    .select('session_id', { count: 'exact', head: true })
-    .gte('recorded_at', since);
-
+  const { data, error } = await supabase.rpc('get_session_count', { since_date: since });
   if (error) throw error;
-  return count || 0;
+  return data || 0;
 }
 
 // 예산 관련 함수
@@ -177,4 +173,33 @@ export async function getAllBudgets(): Promise<BudgetConfig[]> {
     budgetType: b.budget_type as 'weekly' | 'monthly',
     budgetUsd: b.budget_usd,
   }));
+}
+
+export async function getRollingUsage5h() {
+  const { data, error } = await supabase.rpc('get_rolling_usage_5h');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getRollingUsage7d() {
+  const { data, error } = await supabase.rpc('get_rolling_usage_7d');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveUtilization(memberId: string, fiveHourPct: number | null, sevenDayPct: number | null): Promise<void> {
+  const { error } = await supabase
+    .from('utilization_snapshots')
+    .insert({
+      member_id: memberId,
+      five_hour_pct: fiveHourPct,
+      seven_day_pct: sevenDayPct,
+    });
+  if (error) throw error;
+}
+
+export async function getLatestUtilization(): Promise<UtilizationSnapshot[]> {
+  const { data, error } = await supabase.rpc('get_latest_utilization');
+  if (error) throw error;
+  return data || [];
 }

@@ -108,6 +108,82 @@ test.describe('POST /api/usage', () => {
     const body = await res.json();
     expect(body.error).toContain('Too many');
   });
+
+  test('should reject memberName exceeding max length', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: { ...validReport, memberName: 'A'.repeat(257) },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('too long');
+  });
+
+  test('should reject sessionId exceeding max length', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: { ...validReport, sessionId: 'S'.repeat(513) },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('too long');
+  });
+
+  test('should reject model name exceeding max length', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: {
+        ...validReport,
+        records: [{ ...validReport.records[0], model: 'M'.repeat(257) }],
+      },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('too long');
+  });
+
+  test('should reject non-integer token count', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: {
+        ...validReport,
+        records: [{ ...validReport.records[0], inputTokens: 10.5 }],
+      },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('non-negative');
+  });
+
+  test('should reject token count exceeding maximum', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: {
+        ...validReport,
+        records: [{ ...validReport.records[0], inputTokens: 100_000_001 }],
+      },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('exceeds');
+  });
+
+  test('should accept report with utilization data', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: {
+        ...validReport,
+        utilization: { fiveHour: 45.2, sevenDay: 12.8 },
+      },
+    });
+    // May be 200 or 500 (Supabase not configured in test), but not 400
+    expect(res.status()).not.toBe(400);
+  });
+
+  test('should truncate projectName to max length', async ({ request }) => {
+    const res = await request.post('/api/usage', {
+      data: {
+        ...validReport,
+        records: [{ ...validReport.records[0], projectName: 'P'.repeat(500) }],
+      },
+    });
+    // Should not reject — projectName is truncated, not rejected
+    expect(res.status()).not.toBe(400);
+  });
 });
 
 test.describe('GET /api/stats', () => {
@@ -123,6 +199,23 @@ test.describe('GET /api/stats', () => {
       expect(body).toHaveProperty('teamMembers');
       expect(body).toHaveProperty('sessionCount');
     }
+  });
+
+  test('should reject invalid days parameter', async ({ request }) => {
+    const res = await request.get('/api/stats?days=abc');
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Invalid days');
+  });
+
+  test('should reject days=0', async ({ request }) => {
+    const res = await request.get('/api/stats?days=0');
+    expect(res.status()).toBe(400);
+  });
+
+  test('should reject days exceeding 365', async ({ request }) => {
+    const res = await request.get('/api/stats?days=366');
+    expect(res.status()).toBe(400);
   });
 });
 
@@ -140,5 +233,67 @@ test.describe('GET /api/install', () => {
     expect(body).toContain('<synthetic>');
     // Verify prefix matching function is in the script
     expect(body).toContain('resolveModelKey');
+  });
+
+  test('should include fetchUtilization in install script', async ({ request }) => {
+    const res = await request.get('/api/install');
+    expect(res.status()).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('fetchUtilization');
+    expect(body).toContain('api/oauth/usage');
+    expect(body).toContain('anthropic-beta');
+  });
+});
+
+test.describe('POST /api/budgets', () => {
+  test('should reject invalid budgetType', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: null, budgetType: 'yearly', budgetUsd: 100 },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('budgetType');
+  });
+
+  test('should reject negative budgetUsd', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: null, budgetType: 'weekly', budgetUsd: -10 },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('budgetUsd');
+  });
+
+  test('should reject budgetUsd exceeding 1M', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: null, budgetType: 'weekly', budgetUsd: 1_000_001 },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('budgetUsd');
+  });
+
+  test('should reject NaN budgetUsd', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: null, budgetType: 'weekly', budgetUsd: 'abc' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('should reject invalid memberId format', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: 'not-a-uuid', budgetType: 'weekly', budgetUsd: 100 },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('memberId');
+  });
+
+  test('should accept valid budget with null memberId (team default)', async ({ request }) => {
+    const res = await request.post('/api/budgets', {
+      data: { memberId: null, budgetType: 'weekly', budgetUsd: 100 },
+    });
+    // May be 200 or 500 (Supabase not configured), but not 400
+    expect(res.status()).not.toBe(400);
   });
 });

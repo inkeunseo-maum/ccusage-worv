@@ -129,6 +129,7 @@ SYNCMD
 # --- scripts/lib/common.mjs ---
 cat > "\$PLUGIN_DIR/scripts/lib/common.mjs" << 'COMMONMJS'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -151,9 +152,9 @@ export function saveSentSessions(sent) {
 }
 
 export const MODEL_PRICING = {
-  'claude-opus-4-6':   { input: 15,   output: 75,  cacheRead: 1.5,  cacheWrite: 18.75 },
-  'claude-sonnet-4-6': { input: 3,    output: 15,  cacheRead: 0.3,  cacheWrite: 3.75  },
-  'claude-haiku-4-5':  { input: 0.8,  output: 4,   cacheRead: 0.08, cacheWrite: 1     },
+  'claude-opus-4-6':   { input: 5,  output: 25, cacheRead: 0.50, cacheWrite: 6.25 },
+  'claude-sonnet-4-6': { input: 3,  output: 15, cacheRead: 0.30, cacheWrite: 3.75 },
+  'claude-haiku-4-5':  { input: 1,  output: 5,  cacheRead: 0.10, cacheWrite: 1.25 },
 };
 
 export function resolveModelKey(model) {
@@ -208,6 +209,9 @@ export function aggregateByModel(entries) {
       existing.outputTokens += outputTokens;
       existing.cacheCreationTokens += cacheCreationTokens;
       existing.cacheReadTokens += cacheReadTokens;
+      if (entry.timestamp > existing.recordedAt) {
+        existing.recordedAt = entry.timestamp;
+      }
     } else {
       byModel.set(entry.model, {
         model: entry.model, inputTokens, outputTokens,
@@ -233,6 +237,55 @@ export async function sendReport(serverUrl, report, apiKey) {
   });
   if (!res.ok) throw new Error('Server responded with ' + res.status + ': ' + await res.text());
 }
+
+// --- Anthropic OAuth Usage API ---
+
+export async function fetchUtilization() {
+  try {
+    let accessToken = null;
+
+    // Try credentials file first
+    const credPath = join(homedir(), '.claude', '.credentials.json');
+    if (existsSync(credPath)) {
+      try {
+        const creds = JSON.parse(readFileSync(credPath, 'utf-8'));
+        accessToken = creds?.claudeAiOauth?.accessToken;
+      } catch {}
+    }
+
+    // Try macOS Keychain as fallback
+    if (!accessToken && process.platform === 'darwin') {
+      try {
+        const raw = execSync(
+          '/usr/bin/security find-generic-password -s "Claude Code-credentials" -w',
+          { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] }
+        ).trim();
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          accessToken = parsed?.claudeAiOauth?.accessToken || parsed?.accessToken;
+        }
+      } catch {}
+    }
+
+    if (!accessToken) return null;
+
+    const resp = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      fiveHour: typeof data?.five_hour?.utilization === 'number' ? data.five_hour.utilization : null,
+      sevenDay: typeof data?.seven_day?.utilization === 'number' ? data.seven_day.utilization : null,
+    };
+  } catch {
+    return null;
+  }
+}
 COMMONMJS
 
 # --- scripts/catchup.mjs ---
@@ -242,7 +295,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import {
   CLAUDE_PROJECTS_DIR, loadConfig, loadSentSessions,
-  saveSentSessions, parseJsonlFile, aggregateByModel, sendReport,
+  saveSentSessions, parseJsonlFile, aggregateByModel, sendReport, fetchUtilization,
 } from './lib/common.mjs';
 
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -278,6 +331,7 @@ export async function runCatchup(configOverride) {
   const sent = loadSentSessions();
   const unsent = findUnsentTranscripts(sent);
   if (unsent.length === 0) return { success: true, total: 0 };
+  const utilization = await fetchUtilization();
   let successCount = 0;
   for (const { sessionId, filePath, projectName } of unsent) {
     try {
@@ -288,6 +342,7 @@ export async function runCatchup(configOverride) {
       const report = {
         memberName: config.memberName, sessionId, records,
         reportedAt: new Date().toISOString(),
+        ...(utilization && { utilization }),
       };
       await sendReport(config.serverUrl, report, config.apiKey);
       sent[sessionId] = new Date().toISOString();
@@ -314,7 +369,7 @@ import { existsSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import {
   loadConfig, loadSentSessions, saveSentSessions,
-  parseJsonlFile, aggregateByModel, sendReport,
+  parseJsonlFile, aggregateByModel, sendReport, fetchUtilization,
 } from './lib/common.mjs';
 
 function readStdin() {
@@ -344,11 +399,13 @@ async function main() {
   const entries = parseJsonlFile(transcriptPath);
   if (entries.length === 0) return;
   const records = aggregateByModel(entries);
-  const projectName = basename(dirname(dirname(transcriptPath)));
+  const projectName = basename(dirname(transcriptPath));
   records.forEach(r => { r.projectName = projectName; });
+  const utilization = await fetchUtilization();
   const report = {
     memberName: config.memberName, sessionId, records,
     reportedAt: new Date().toISOString(),
+    ...(utilization && { utilization }),
   };
   try {
     await sendReport(config.serverUrl, report, config.apiKey);
